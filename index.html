@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Órdenes de Trabajo</title>
+<style>
+  :root{
+    --paper:#EDEEE9; --card:#FFFFFF; --ink:#1B2430; --ink-soft:#6B7280; --line:#D6D7CE;
+    --blue-dark:#1E4260;
+    --urgente:#C1442D; --urgente-bg:#F7E4DE;
+    --media:#B87B12; --media-bg:#F7ECD6;
+    --baja:#3F7A5C; --baja-bg:#DEEBE3;
+    --pagado:#2F7A6C;
+    --amber-bg:#FBEFD7; --amber:#8A5B0A;
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --font-disp: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-disp);padding:20px 14px 60px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--ink);padding-bottom:10px;margin-bottom:18px;}
+  h1{font-size:22px;letter-spacing:0.5px;text-transform:uppercase;margin:0;font-weight:800;}
+  .sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .today{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);text-align:right;}
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px;}
+  .metric{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px;}
+  .metric .label{font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-soft);font-weight:700;}
+  .metric .val{font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:2px;}
+  .metric.saldo .val{color:var(--urgente);}
+  .metric.pagado .val{color:var(--pagado);}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+  select, input, textarea{font-family:var(--font-disp);font-size:13px;border:1px solid var(--line);border-radius:5px;padding:7px 8px;background:var(--card);color:var(--ink);}
+  .toolbar select{flex:1;min-width:110px;}
+  .btn{font-family:var(--font-disp);font-size:13px;font-weight:700;border:1px solid var(--ink);border-radius:5px;padding:8px 14px;background:var(--ink);color:var(--paper);cursor:pointer;}
+  .btn.secondary{background:var(--card);color:var(--ink);}
+  .btn.small{padding:5px 9px;font-size:12px;}
+  .btn.danger{background:var(--card);color:var(--urgente);border-color:var(--urgente);}
+  .btn.ok{background:var(--card);color:var(--pagado);border-color:var(--pagado);}
+  .aviso{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:14px;}
+  #formCard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:18px;display:none;}
+  #formCard.open{display:block;}
+  #formCard h2{font-size:14px;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 12px;}
+  .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .formgrid .full{grid-column:1/-1;}
+  label{font-size:11px;color:var(--ink-soft);display:block;margin-bottom:3px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;}
+  .formgrid select, .formgrid input, .formgrid textarea{width:100%;}
+  .formactions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end;}
+  .ficha{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+  .ficha.pr-urgente{border-left-color:var(--urgente);}
+  .ficha.pr-media{border-left-color:var(--media);}
+  .ficha.pr-baja{border-left-color:var(--baja);}
+  .ficha.resuelto{opacity:0.55;}
+  .ficha-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .lugar-tag{font-family:var(--font-mono);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--blue-dark);letter-spacing:0.3px;}
+  .direccion{font-size:10px;color:var(--ink-soft);margin-top:1px;}
+  .stamp{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;padding:2px 8px;border-radius:3px;border:1.5px solid;transform:rotate(-2deg);white-space:nowrap;}
+  .stamp.urgente{color:var(--urgente);border-color:var(--urgente);background:var(--urgente-bg);}
+  .stamp.media{color:var(--media);border-color:var(--media);background:var(--media-bg);}
+  .stamp.baja{color:var(--baja);border-color:var(--baja);background:var(--baja-bg);}
+  .extra-badge{font-size:9px;font-weight:800;text-transform:uppercase;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber);border-radius:3px;padding:1px 6px;margin-left:6px;}
+  .ficha-desc{font-size:14px;margin:6px 0 4px;font-weight:500;}
+  .ficha-meta{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+  .tipo-chip{font-size:10px;text-transform:uppercase;font-weight:700;color:var(--ink-soft);}
+  .money-row{display:flex;gap:14px;font-family:var(--font-mono);font-size:12px;flex-wrap:wrap;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px;}
+  .money-row .m-label{color:var(--ink-soft);font-size:10px;text-transform:uppercase;display:block;}
+  .money-row .m-val{font-weight:700;}
+  .ficha-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+  .notas{font-size:12px;color:var(--ink-soft);font-style:italic;margin-top:6px;}
+  .empty{text-align:center;padding:40px 20px;color:var(--ink-soft);font-size:13px;}
+  body.role-tecnico .admin-only{display:none !important;}
+  .setup-box{max-width:520px;margin:60px auto;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:20px;font-size:13px;line-height:1.6;}
+  .setup-box code{background:var(--paper);padding:2px 6px;border-radius:4px;font-family:var(--font-mono);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="rolScreen" style="padding:60px 10px;text-align:center;">
+    <h1 style="margin-bottom:6px;">Órdenes de trabajo</h1>
+    <div class="sub" style="margin-bottom:30px;">¿Quién sos?</div>
+
+    <div id="pinBox" style="display:none;max-width:280px;margin:0 auto 14px;">
+      <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN" style="width:100%;text-align:center;font-size:18px;letter-spacing:4px;padding:12px;margin-bottom:8px;">
+      <div id="pinError" style="color:var(--urgente);font-size:12px;margin-bottom:8px;display:none;">PIN incorrecto</div>
+      <button class="btn" id="btnPinConfirmar" style="width:100%;padding:12px;">Entrar</button>
+    </div>
+
+    <button class="btn" style="display:block;width:100%;max-width:280px;margin:0 auto 10px;padding:14px;" id="btnRolAdmin">Soy Celeste (precios y pagos)</button>
+    <button class="btn secondary" style="display:block;width:100%;max-width:280px;margin:0 auto;padding:14px;" id="btnRolTecnico">Soy el técnico</button>
+  </div>
+
+  <div id="modalOverlay" style="display:none;position:fixed;inset:0;background:rgba(27,36,48,0.6);z-index:100;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--card);border-radius:8px;padding:18px;max-width:480px;width:100%;max-height:80vh;overflow:auto;">
+      <div id="modalTitle" style="font-weight:800;text-transform:uppercase;font-size:13px;margin-bottom:10px;"></div>
+      <div id="modalBody"></div>
+      <div id="modalActions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <div id="appMain" style="display:none;">
+  <header>
+    <div>
+      <h1>Órdenes de trabajo</h1>
+      <div class="sub" id="subRol">Panel admin — precios y pagos</div>
+    </div>
+    <div class="today" id="fechaHoy"></div>
+  </header>
+
+  <div class="aviso admin-only">Los precios y pagos son visibles para el técnico, pero solo vos podés editarlos o marcarlos.</div>
+
+  <div class="summary">
+    <div class="metric"><div class="label">Acordado</div><div class="val" id="totalAcordado">$0</div></div>
+    <div class="metric pagado"><div class="label">Pagado</div><div class="val" id="totalPagado">$0</div></div>
+    <div class="metric saldo"><div class="label">Saldo pendiente</div><div class="val" id="totalSaldo">$0</div></div>
+  </div>
+
+  <div class="toolbar">
+    <select id="filtroLugar"><option value="">Todos los lugares</option></select>
+    <select id="filtroPrioridad">
+      <option value="">Toda prioridad</option>
+      <option value="urgente">Urgente</option>
+      <option value="media">Media</option>
+      <option value="baja">Baja</option>
+    </select>
+    <select id="filtroEstado">
+      <option value="">Pendientes y resueltos</option>
+      <option value="pendiente">Solo pendientes</option>
+      <option value="resuelto">Solo resueltos</option>
+    </select>
+    <button class="btn secondary" id="btnActualizar">↻ Actualizar</button>
+    <button class="btn" id="btnNuevo">+ Nuevo pedido</button>
+  </div>
+
+  <div id="formCard">
+    <h2 id="formTitle">Nuevo pedido</h2>
+    <div class="formgrid">
+      <div>
+        <label>Lugar</label>
+        <select id="f_lugar">
+          <option>PIZUELA</option><option>MOSTACHO</option><option>EL NARANJO</option>
+          <option>EL ANDAMIO</option><option>MI GARAGE</option><option>STOP E</option>
+          <option>ALTO E</option><option>LA GUARDIA</option><option>ZONA E</option>
+          <option>DPTO 24</option><option value="__otro">Otro...</option>
+        </select>
+        <input id="f_lugar_otro" placeholder="Nombre del lugar" style="display:none;margin-top:6px;">
+      </div>
+      <div>
+        <label>Tipo</label>
+        <select id="f_tipo">
+          <option value="no funciona">No funciona</option>
+          <option value="agregar">Agregar</option>
+          <option value="mejorar">Mejorar</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>Pedido / descripción</label>
+        <input id="f_pedido" placeholder="Ej: Camara con audio arriba">
+      </div>
+      <div>
+        <label>Prioridad</label>
+        <select id="f_prioridad">
+          <option value="urgente">Urgente</option>
+          <option value="media" selected>Media</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+      <div>
+        <label>Fecha</label>
+        <input id="f_fecha" type="date">
+      </div>
+      <div class="admin-only">
+        <label>Precio acordado</label>
+        <input id="f_precio" type="number" min="0" step="1" placeholder="0">
+      </div>
+      <div class="admin-only">
+        <label>Pagado</label>
+        <input id="f_pagado" type="number" min="0" step="1" placeholder="0">
+      </div>
+      <div class="full">
+        <label>Notas</label>
+        <textarea id="f_notas" rows="2" placeholder="Detalles, proveedor, contacto..."></textarea>
+      </div>
+    </div>
+    <div class="formactions">
+      <button class="btn secondary" id="btnCancelar">Cancelar</button>
+      <button class="btn" id="btnGuardar">Guardar</button>
+    </div>
+  </div>
+
+  <div id="lista"></div>
+  </div>
+</div>
+
+<script>
+// ====== CONFIGURACIÓN DE BASE DE DATOS (Supabase - proyecto Mis Estacionamientos) ======
+const SUPABASE_URL = 'https://rtpxdtxfwcdnjffsvrkl.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-MWuvqcV6x3Ay7DtATuZtw_2xzgIM85';
+// ==========================================================================
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function filaATrabajo(f){
+  return {
+    id: f.id, lugar: f.lugar, tipo: f.tipo, pedido: f.pedido, prioridad: f.prioridad,
+    fecha: f.fecha, estado: f.estado, notas: f.notas || '', precio: f.precio || 0,
+    pagado: f.pagado || 0, agregadoPor: f.agregado_por
+  };
+}
+function trabajoAFila(t){
+  return {
+    id: t.id, lugar: t.lugar, tipo: t.tipo, pedido: t.pedido, prioridad: t.prioridad,
+    fecha: t.fecha || null, estado: t.estado, notas: t.notas || '', precio: t.precio || 0,
+    pagado: t.pagado || 0, agregado_por: t.agregadoPor
+  };
+}
+
+const ORDEN_LUGARES = ["PIZUELA","MOSTACHO","EL NARANJO","EL ANDAMIO","MI GARAGE","STOP E","ALTO E","LA GUARDIA","ZONA E"];
+const DIRECCIONES = {
+  "PIZUELA":"24 de Septiembre 1001","MOSTACHO":"9 de Julio 26","EL NARANJO":"Crisóstomo Álvarez 130",
+  "EL ANDAMIO":"9 de Julio 217","MI GARAGE":"24 de Septiembre 946","STOP E":"Virgen de la Merced 150",
+  "ALTO E":"Crisóstomo Álvarez 632","LA GUARDIA":"San Juan 555","ZONA E":"San Luis 265",
+};
+function ordenLugar(l){ const i=ORDEN_LUGARES.indexOf(l); return i===-1?999:i; }
+
+let trabajos = [];
+let editandoId = null;
+let rol = null;
+const PIN_ADMIN = '1913';
+
+document.getElementById('fechaHoy').textContent = new Date().toLocaleDateString('es-AR', {weekday:'short', day:'2-digit', month:'short', year:'numeric'});
+function fmtMoney(n){ n=Number(n)||0; return '$'+n.toLocaleString('es-AR',{maximumFractionDigits:0}); }
+
+const IMPORT_INICIAL = [
+  {lugar:'PIZUELA', pedido:'Camara ochava', tipo:'no funciona', prioridad:'media'},
+  {lugar:'PIZUELA', pedido:'Camara con audio arriba', tipo:'agregar', prioridad:'media'},
+  {lugar:'EL NARANJO', pedido:'Cabina audio feo', tipo:'mejorar', prioridad:'media'},
+  {lugar:'EL NARANJO', pedido:'Camara 5: agregar audio', tipo:'agregar', prioridad:'media'},
+  {lugar:'EL ANDAMIO', pedido:'No se ve la camara del fondo', tipo:'no funciona', prioridad:'urgente'},
+  {lugar:'EL ANDAMIO', pedido:'Audio en playa', tipo:'agregar', prioridad:'media'},
+  {lugar:'MI GARAGE', pedido:'Agregar audio Galpon Izq', tipo:'agregar', prioridad:'media'},
+  {lugar:'STOP E', pedido:'Camara con audio panoramica', tipo:'agregar', prioridad:'media'},
+  {lugar:'STOP E', pedido:'Camara IZ36 a 47 no se ve', tipo:'no funciona', prioridad:'urgente'},
+  {lugar:'ALTO E', pedido:'Poner audio afuera de la cabina', tipo:'agregar', prioridad:'media'},
+  {lugar:'LA GUARDIA', pedido:'Camara en zona Motos', tipo:'agregar', prioridad:'media'},
+  {lugar:'LA GUARDIA', pedido:'Poner audio en camara en playa', tipo:'agregar', prioridad:'media'},
+  {lugar:'ZONA E', pedido:'3 camaras caidas', tipo:'no funciona', prioridad:'urgente'},
+  {lugar:'MOSTACHO', pedido:'No se ve camara salon barra', tipo:'no funciona', prioridad:'urgente'},
+  {lugar:'DPTO 24', pedido:'Cerradura electronica', tipo:'agregar', prioridad:'media'},
+];
+
+async function cargar(){
+  try{
+    const { data, error } = await db.from('trabajos').select('*');
+    if(error) throw error;
+    trabajos = (data || []).map(filaATrabajo);
+  }catch(e){
+    trabajos = [];
+    mostrarModal('Error de conexión', '<p>No se pudo conectar con la base de datos. Revisá tu conexión a internet.</p>', [{label:'OK'}]);
+  }
+
+  if(trabajos.length === 0){
+    const hoy = new Date().toISOString().slice(0,10);
+    const nuevos = IMPORT_INICIAL.map((p,i)=>({
+      id:'p'+Date.now()+'_'+i, estado:'pendiente', fecha:hoy, notas:'', precio:0, pagado:0, agregadoPor:'admin', ...p
+    }));
+    try{
+      const { error } = await db.from('trabajos').insert(nuevos.map(trabajoAFila));
+      if(!error) trabajos = nuevos;
+    }catch(e){}
+  }
+  poblarFiltroLugar();
+  render();
+}
+async function guardarUno(t){
+  try{ await db.from('trabajos').upsert(trabajoAFila(t)); }
+  catch(e){ console.error(e); }
+}
+async function actualizarEstadoDB(id, estado){
+  try{ await db.from('trabajos').update({estado}).eq('id', id); }
+  catch(e){ console.error(e); }
+}
+async function eliminarDB(id){
+  try{ await db.from('trabajos').delete().eq('id', id); }
+  catch(e){ console.error(e); }
+}
+async function recargarDesdeDB(){
+  const { data, error } = await db.from('trabajos').select('*');
+  if(error) throw error;
+  return (data || []).map(filaATrabajo);
+}
+
+function poblarFiltroLugar(){
+  const sel = document.getElementById('filtroLugar');
+  const actuales = new Set(ORDEN_LUGARES.concat(['DPTO 24']));
+  trabajos.forEach(t=>actuales.add(t.lugar));
+  const ordenados = [...actuales].sort((a,b)=>{
+    const oa=ordenLugar(a), ob=ordenLugar(b);
+    if(oa!==ob) return oa-ob;
+    return a.localeCompare(b);
+  });
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Todos los lugares</option>' + ordenados.map(l=>`<option value="${l}">${l}</option>`).join('');
+  sel.value = prev;
+}
+
+function calcularTotales(lista){
+  let acordado=0, pagado=0;
+  lista.forEach(t=>{ acordado += Number(t.precio)||0; pagado += Number(t.pagado)||0; });
+  return {acordado, pagado, saldo: acordado-pagado};
+}
+
+function render(){
+  const fLugar = document.getElementById('filtroLugar').value;
+  const fPrioridad = document.getElementById('filtroPrioridad').value;
+  const fEstado = document.getElementById('filtroEstado').value;
+
+  let filtrados = trabajos.filter(t=>{
+    if(fLugar && t.lugar!==fLugar) return false;
+    if(fPrioridad && t.prioridad!==fPrioridad) return false;
+    if(fEstado && t.estado!==fEstado) return false;
+    return true;
+  });
+
+  const orden = {urgente:0, media:1, baja:2};
+  filtrados.sort((a,b)=>{
+    const ol = ordenLugar(a.lugar)-ordenLugar(b.lugar);
+    if(ol!==0) return ol;
+    if(a.estado!==b.estado) return a.estado==='pendiente'?-1:1;
+    if(orden[a.prioridad]!==orden[b.prioridad]) return orden[a.prioridad]-orden[b.prioridad];
+    return (b.fecha||'').localeCompare(a.fecha||'');
+  });
+
+  const tot = calcularTotales(filtrados);
+  document.getElementById('totalAcordado').textContent = fmtMoney(tot.acordado);
+  document.getElementById('totalPagado').textContent = fmtMoney(tot.pagado);
+  document.getElementById('totalSaldo').textContent = fmtMoney(tot.saldo);
+
+  const cont = document.getElementById('lista');
+  if(filtrados.length===0){ cont.innerHTML = '<div class="empty">No hay pedidos para este filtro.</div>'; return; }
+
+  cont.innerHTML = filtrados.map(t=>{
+    const saldo = (Number(t.precio)||0) - (Number(t.pagado)||0);
+    const esExtra = t.agregadoPor === 'tecnico';
+    const btnEliminar = rol === 'admin' ? `<button class="btn danger small" onclick="eliminar('${t.id}')">Eliminar</button>` : '';
+    return `
+    <div class="ficha pr-${t.prioridad} ${t.estado==='resuelto'?'resuelto':''}">
+      <div class="ficha-top">
+        <div>
+          <span class="lugar-tag">${t.lugar}</span>${esExtra ? '<span class="extra-badge">Extra técnico</span>' : ''}
+          ${DIRECCIONES[t.lugar] ? `<div class="direccion">${DIRECCIONES[t.lugar]}</div>` : ''}
+        </div>
+        <span class="stamp ${t.prioridad}">${t.prioridad}</span>
+      </div>
+      <div class="ficha-desc">${t.pedido}</div>
+      <div class="ficha-meta">
+        <span class="tipo-chip">${t.tipo}</span>
+        <span>${t.fecha||'sin fecha'}</span>
+        <span>${t.estado==='resuelto'?'✓ resuelto':'pendiente'}</span>
+      </div>
+      <div class="money-row">
+        <div><span class="m-label">Acordado</span><span class="m-val">${fmtMoney(t.precio)}</span></div>
+        <div><span class="m-label">Pagado</span><span class="m-val" style="color:var(--pagado)">${fmtMoney(t.pagado)}</span></div>
+        <div><span class="m-label">Saldo</span><span class="m-val" style="color:${saldo>0?'var(--urgente)':'var(--pagado)'}">${fmtMoney(saldo)}</span></div>
+      </div>
+      ${t.notas ? `<div class="notas">${t.notas}</div>` : ''}
+      <div class="ficha-actions">
+        ${t.estado==='pendiente' ? `<button class="btn ok small" onclick="marcarResuelto('${t.id}')">Marcar resuelto</button>` : `<button class="btn secondary small" onclick="marcarResuelto('${t.id}')">Reabrir</button>`}
+        <button class="btn secondary small" onclick="editar('${t.id}')">Editar</button>
+        ${btnEliminar}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function mostrarModal(titulo, bodyBuilder, botones){
+  document.getElementById('modalTitle').textContent = titulo;
+  const body = document.getElementById('modalBody');
+  body.innerHTML = '';
+  if(typeof bodyBuilder === 'function') bodyBuilder(body);
+  else body.innerHTML = bodyBuilder;
+  const acc = document.getElementById('modalActions');
+  acc.innerHTML = '';
+  botones.forEach(b=>{
+    const btn = document.createElement('button');
+    btn.className = 'btn ' + (b.clase || 'secondary') + ' small';
+    btn.textContent = b.label;
+    btn.onclick = ()=>{ if(b.onClick) b.onClick(); if(b.cerrar !== false) cerrarModal(); };
+    acc.appendChild(btn);
+  });
+  document.getElementById('modalOverlay').style.display = 'flex';
+}
+function cerrarModal(){ document.getElementById('modalOverlay').style.display = 'none'; }
+
+function abrirForm(edit){
+  document.getElementById('formCard').classList.add('open');
+  document.getElementById('formTitle').textContent = edit ? 'Editar pedido' : 'Nuevo pedido';
+  document.getElementById('btnNuevo').style.display = 'none';
+}
+function cerrarForm(){
+  document.getElementById('formCard').classList.remove('open');
+  document.getElementById('btnNuevo').style.display = 'inline-block';
+  editandoId = null;
+  limpiarForm();
+}
+function limpiarForm(){
+  document.getElementById('f_lugar').value='PIZUELA';
+  document.getElementById('f_lugar_otro').style.display='none';
+  document.getElementById('f_lugar_otro').value='';
+  document.getElementById('f_tipo').value='no funciona';
+  document.getElementById('f_pedido').value='';
+  document.getElementById('f_prioridad').value='media';
+  document.getElementById('f_fecha').value=new Date().toISOString().slice(0,10);
+  document.getElementById('f_precio').value='';
+  document.getElementById('f_pagado').value='';
+  document.getElementById('f_notas').value='';
+}
+document.getElementById('f_lugar').addEventListener('change', e=>{
+  document.getElementById('f_lugar_otro').style.display = e.target.value==='__otro' ? 'block':'none';
+});
+document.getElementById('btnNuevo').addEventListener('click', ()=>{ editandoId=null; limpiarForm(); abrirForm(false); });
+document.getElementById('btnCancelar').addEventListener('click', cerrarForm);
+
+document.getElementById('btnGuardar').addEventListener('click', async ()=>{
+  const lugarSel = document.getElementById('f_lugar').value;
+  const lugar = lugarSel==='__otro' ? (document.getElementById('f_lugar_otro').value.trim().toUpperCase()||'SIN LUGAR') : lugarSel;
+  const pedidoTxt = document.getElementById('f_pedido').value.trim();
+  if(!pedidoTxt){ mostrarModal('Falta información', '<p>Falta la descripción del pedido.</p>', [{label:'OK'}]); return; }
+
+  const datosTrabajo = {
+    lugar, tipo: document.getElementById('f_tipo').value, pedido: pedidoTxt,
+    prioridad: document.getElementById('f_prioridad').value,
+    fecha: document.getElementById('f_fecha').value,
+    notas: document.getElementById('f_notas').value.trim(),
+  };
+  if(rol === 'admin'){
+    datosTrabajo.precio = Number(document.getElementById('f_precio').value)||0;
+    datosTrabajo.pagado = Number(document.getElementById('f_pagado').value)||0;
+  }
+
+  let nuevoTrabajo;
+  if(editandoId){
+    const idx = trabajos.findIndex(t=>t.id===editandoId);
+    if(idx>-1){ trabajos[idx] = {...trabajos[idx], ...datosTrabajo}; nuevoTrabajo = trabajos[idx]; }
+  } else {
+    nuevoTrabajo = {id:'p'+Date.now(), estado:'pendiente', precio:0, pagado:0, agregadoPor: rol, ...datosTrabajo};
+    trabajos.push(nuevoTrabajo);
+  }
+  await guardarUno(nuevoTrabajo);
+  poblarFiltroLugar();
+  render();
+  cerrarForm();
+});
+
+function editar(id){
+  const t = trabajos.find(x=>x.id===id);
+  if(!t) return;
+  editandoId = id;
+  const sel = document.getElementById('f_lugar');
+  const existe = [...sel.options].some(o=>o.value===t.lugar);
+  if(existe){ sel.value=t.lugar; document.getElementById('f_lugar_otro').style.display='none'; }
+  else{ sel.value='__otro'; document.getElementById('f_lugar_otro').style.display='block'; document.getElementById('f_lugar_otro').value=t.lugar; }
+  document.getElementById('f_tipo').value=t.tipo;
+  document.getElementById('f_pedido').value=t.pedido;
+  document.getElementById('f_prioridad').value=t.prioridad;
+  document.getElementById('f_fecha').value=t.fecha||'';
+  document.getElementById('f_precio').value=t.precio||'';
+  document.getElementById('f_pagado').value=t.pagado||'';
+  document.getElementById('f_notas').value=t.notas||'';
+  abrirForm(true);
+}
+
+async function marcarResuelto(id){
+  const t = trabajos.find(x=>x.id===id);
+  if(!t) return;
+  t.estado = t.estado==='pendiente' ? 'resuelto' : 'pendiente';
+  await actualizarEstadoDB(id, t.estado);
+  render();
+}
+
+function eliminar(id){
+  mostrarModal('Eliminar pedido', '<p>¿Eliminar este pedido? No se puede deshacer.</p>', [
+    {label:'Cancelar'},
+    {label:'Eliminar', clase:'danger', onClick: async ()=>{
+      trabajos = trabajos.filter(t=>t.id!==id);
+      await eliminarDB(id);
+      poblarFiltroLugar();
+      render();
+    }}
+  ]);
+}
+
+document.getElementById('filtroLugar').addEventListener('change', render);
+document.getElementById('filtroPrioridad').addEventListener('change', render);
+document.getElementById('filtroEstado').addEventListener('change', render);
+
+async function actualizarAhora(){
+  const btn = document.getElementById('btnActualizar');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '↻ ...';
+  try{
+    trabajos = await recargarDesdeDB();
+    poblarFiltroLugar();
+    render();
+  }catch(e){}
+  btn.disabled = false;
+  btn.textContent = original;
+}
+document.getElementById('btnActualizar').addEventListener('click', actualizarAhora);
+
+function elegirRol(r){
+  rol = r;
+  document.body.classList.toggle('role-tecnico', r === 'tecnico');
+  document.getElementById('pinBox').style.display = 'none';
+  document.getElementById('rolScreen').style.display = 'none';
+  document.getElementById('appMain').style.display = 'block';
+  document.getElementById('subRol').textContent = r === 'admin' ? 'Panel admin — precios y pagos' : 'Vista técnico';
+  cargar();
+}
+document.getElementById('btnRolAdmin').addEventListener('click', ()=>{
+  document.getElementById('pinBox').style.display = 'block';
+  document.getElementById('pinError').style.display = 'none';
+  document.getElementById('pinInput').value = '';
+  document.getElementById('pinInput').focus();
+});
+function intentarPin(){
+  const valor = document.getElementById('pinInput').value;
+  if(valor === PIN_ADMIN) elegirRol('admin');
+  else {
+    document.getElementById('pinError').style.display = 'block';
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinInput').focus();
+  }
+}
+document.getElementById('btnPinConfirmar').addEventListener('click', intentarPin);
+document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key === 'Enter') intentarPin(); });
+document.getElementById('btnRolTecnico').addEventListener('click', ()=>elegirRol('tecnico'));
+
+setInterval(async ()=>{
+  if(!rol) return;
+  if(document.getElementById('formCard').classList.contains('open')) return;
+  try{
+    const fresco = await recargarDesdeDB();
+    if(JSON.stringify(fresco) !== JSON.stringify(trabajos)){
+      trabajos = fresco;
+      poblarFiltroLugar();
+      render();
+    }
+  }catch(e){}
+}, 15000);
+</script>
+</body>
+</html>

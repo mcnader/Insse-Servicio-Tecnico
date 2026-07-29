@@ -37,6 +37,8 @@
   .btn.small{padding:5px 9px;font-size:12px;}
   .btn.danger{background:var(--card);color:var(--urgente);border-color:var(--urgente);}
   .btn.ok{background:var(--card);color:var(--pagado);border-color:var(--pagado);}
+  .btn-estado{font-family:var(--font-disp);font-size:13px;font-weight:700;border:1px solid var(--line);border-radius:20px;padding:7px 16px;background:var(--card);color:var(--ink-soft);cursor:pointer;}
+  .btn-estado.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
   .aviso{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:14px;}
   #formCard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:18px;display:none;}
   #formCard.open{display:block;}
@@ -116,6 +118,12 @@
     <div class="metric saldo"><div class="label">Saldo pendiente</div><div class="val" id="totalSaldo">$0</div></div>
   </div>
 
+  <div class="estado-btns" style="display:flex;gap:6px;margin-bottom:10px;">
+    <button class="btn-estado active" data-estado="">Todos</button>
+    <button class="btn-estado" data-estado="pendiente">Pendientes</button>
+    <button class="btn-estado" data-estado="resuelto">Resueltos</button>
+  </div>
+
   <div class="toolbar">
     <select id="filtroLugar"><option value="">Todos los lugares</option></select>
     <select id="filtroPrioridad">
@@ -123,11 +131,6 @@
       <option value="urgente">Urgente</option>
       <option value="media">Media</option>
       <option value="baja">Baja</option>
-    </select>
-    <select id="filtroEstado">
-      <option value="">Pendientes y resueltos</option>
-      <option value="pendiente">Solo pendientes</option>
-      <option value="resuelto">Solo resueltos</option>
     </select>
     <button class="btn secondary" id="btnActualizar">↻ Actualizar</button>
     <button class="btn" id="btnNuevo">+ Nuevo pedido</button>
@@ -204,15 +207,19 @@ function filaATrabajo(f){
   return {
     id: f.id, lugar: f.lugar, tipo: f.tipo, pedido: f.pedido, prioridad: f.prioridad,
     fecha: f.fecha, estado: f.estado, notas: f.notas || '', precio: f.precio || 0,
-    pagado: f.pagado || 0, agregadoPor: f.agregado_por
+    pagado: f.pagado || 0, agregadoPor: f.agregado_por, notasTecnico: f.notas_tecnico || ''
   };
 }
 function trabajoAFila(t){
   return {
     id: t.id, lugar: t.lugar, tipo: t.tipo, pedido: t.pedido, prioridad: t.prioridad,
     fecha: t.fecha || null, estado: t.estado, notas: t.notas || '', precio: t.precio || 0,
-    pagado: t.pagado || 0, agregado_por: t.agregadoPor
+    pagado: t.pagado || 0, agregado_por: t.agregadoPor, notas_tecnico: t.notasTecnico || ''
   };
+}
+async function guardarNotaTecnicoDB(id, texto){
+  try{ await db.from('trabajos').update({notas_tecnico: texto}).eq('id', id); }
+  catch(e){ console.error(e); }
 }
 
 const ORDEN_LUGARES = ["PIZUELA","MOSTACHO","EL NARANJO","EL ANDAMIO","MI GARAGE","STOP E","ALTO E","LA GUARDIA","ZONA E"];
@@ -225,6 +232,7 @@ function ordenLugar(l){ const i=ORDEN_LUGARES.indexOf(l); return i===-1?999:i; }
 
 let trabajos = [];
 let editandoId = null;
+let filtroEstadoActual = '';
 let rol = null;
 const PIN_ADMIN = '1913';
 
@@ -313,7 +321,7 @@ function calcularTotales(lista){
 function render(){
   const fLugar = document.getElementById('filtroLugar').value;
   const fPrioridad = document.getElementById('filtroPrioridad').value;
-  const fEstado = document.getElementById('filtroEstado').value;
+  const fEstado = filtroEstadoActual;
 
   let filtrados = trabajos.filter(t=>{
     if(fLugar && t.lugar!==fLugar) return false;
@@ -343,6 +351,8 @@ function render(){
     const saldo = (Number(t.precio)||0) - (Number(t.pagado)||0);
     const esExtra = t.agregadoPor === 'tecnico';
     const btnEliminar = rol === 'admin' ? `<button class="btn danger small" onclick="eliminar('${t.id}')">Eliminar</button>` : '';
+    const btnEditar = rol === 'admin' ? `<button class="btn secondary small" onclick="editar('${t.id}')">Editar</button>` : '';
+    const btnNotaTecnico = `<button class="btn secondary small" onclick="abrirNotaTecnico('${t.id}')">${t.notasTecnico ? 'Editar nota técnico' : '+ Nota técnico'}</button>`;
     return `
     <div class="ficha pr-${t.prioridad} ${t.estado==='resuelto'?'resuelto':''}">
       <div class="ficha-top">
@@ -364,9 +374,11 @@ function render(){
         <div><span class="m-label">Saldo</span><span class="m-val" style="color:${saldo>0?'var(--urgente)':'var(--pagado)'}">${fmtMoney(saldo)}</span></div>
       </div>
       ${t.notas ? `<div class="notas">${t.notas}</div>` : ''}
+      ${t.notasTecnico ? `<div class="notas" style="color:var(--blue-dark);font-style:normal;">🔧 <b>Técnico:</b> ${t.notasTecnico}</div>` : ''}
       <div class="ficha-actions">
         ${t.estado==='pendiente' ? `<button class="btn ok small" onclick="marcarResuelto('${t.id}')">Marcar resuelto</button>` : `<button class="btn secondary small" onclick="marcarResuelto('${t.id}')">Reabrir</button>`}
-        <button class="btn secondary small" onclick="editar('${t.id}')">Editar</button>
+        ${btnEditar}
+        ${btnNotaTecnico}
         ${btnEliminar}
       </div>
     </div>`;
@@ -396,6 +408,9 @@ function abrirForm(edit){
   document.getElementById('formCard').classList.add('open');
   document.getElementById('formTitle').textContent = edit ? 'Editar pedido' : 'Nuevo pedido';
   document.getElementById('btnNuevo').style.display = 'none';
+  setTimeout(()=>{
+    document.getElementById('formCard').scrollIntoView({behavior:'smooth', block:'start'});
+  }, 50);
 }
 function cerrarForm(){
   document.getElementById('formCard').classList.remove('open');
@@ -478,6 +493,27 @@ async function marcarResuelto(id){
   render();
 }
 
+function abrirNotaTecnico(id){
+  const t = trabajos.find(x=>x.id===id);
+  if(!t) return;
+  mostrarModal('Nota del técnico', (body)=>{
+    const ta = document.createElement('textarea');
+    ta.id = 'notaTecnicoInput';
+    ta.value = t.notasTecnico || '';
+    ta.placeholder = 'Ej: hecho, falta material, etc.';
+    ta.style.cssText = 'width:100%;height:100px;padding:8px;font-family:var(--font-disp);font-size:13px;';
+    body.appendChild(ta);
+  }, [
+    {label:'Cancelar'},
+    {label:'Guardar', clase:'ok', onClick: async ()=>{
+      const texto = document.getElementById('notaTecnicoInput').value.trim();
+      t.notasTecnico = texto;
+      await guardarNotaTecnicoDB(id, texto);
+      render();
+    }}
+  ]);
+}
+
 function eliminar(id){
   mostrarModal('Eliminar pedido', '<p>¿Eliminar este pedido? No se puede deshacer.</p>', [
     {label:'Cancelar'},
@@ -492,7 +528,14 @@ function eliminar(id){
 
 document.getElementById('filtroLugar').addEventListener('change', render);
 document.getElementById('filtroPrioridad').addEventListener('change', render);
-document.getElementById('filtroEstado').addEventListener('change', render);
+document.querySelectorAll('.btn-estado').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    filtroEstadoActual = btn.dataset.estado;
+    document.querySelectorAll('.btn-estado').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  });
+});
 
 async function actualizarAhora(){
   const btn = document.getElementById('btnActualizar');

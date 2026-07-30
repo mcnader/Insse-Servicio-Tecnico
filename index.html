@@ -40,8 +40,7 @@
   .btn-estado{font-family:var(--font-disp);font-size:13px;font-weight:700;border:1px solid var(--line);border-radius:20px;padding:7px 16px;background:var(--card);color:var(--ink-soft);cursor:pointer;}
   .btn-estado.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
   .aviso{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:14px;}
-  #formCard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:18px;display:none;}
-  #formCard.open{display:block;}
+  #formCard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;}
   #formCard h2{font-size:14px;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 12px;}
   .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .formgrid .full{grid-column:1/-1;}
@@ -136,7 +135,8 @@
     <button class="btn" id="btnNuevo">+ Nuevo pedido</button>
   </div>
 
-  <div id="formCard">
+  <div id="formOverlay" style="display:none;position:fixed;inset:0;background:rgba(27,36,48,0.6);z-index:110;align-items:center;justify-content:center;padding:16px;">
+  <div id="formCard" style="max-height:88vh;overflow:auto;max-width:520px;width:100%;">
     <h2 id="formTitle">Nuevo pedido</h2>
     <div class="formgrid">
       <div>
@@ -190,6 +190,7 @@
       <button class="btn secondary" id="btnCancelar">Cancelar</button>
       <button class="btn" id="btnGuardar">Guardar</button>
     </div>
+  </div>
   </div>
 
   <div id="lista"></div>
@@ -348,6 +349,7 @@ function render(){
   if(filtrados.length===0){ cont.innerHTML = '<div class="empty">No hay pedidos para este filtro.</div>'; return; }
 
   cont.innerHTML = filtrados.map(t=>{
+    if(editandoId === t.id) return fichaEdicionInline(t);
     const saldo = (Number(t.precio)||0) - (Number(t.pagado)||0);
     const esExtra = t.agregadoPor === 'tecnico';
     const btnEliminar = rol === 'admin' ? `<button class="btn danger small" onclick="eliminar('${t.id}')">Eliminar</button>` : '';
@@ -383,6 +385,102 @@ function render(){
       </div>
     </div>`;
   }).join('');
+
+  if(editandoId){
+    const ieLugar = document.getElementById('ie_lugar');
+    if(ieLugar) ieLugar.addEventListener('change', e=>{
+      document.getElementById('ie_lugar_otro').style.display = e.target.value==='__otro' ? 'block':'none';
+    });
+  }
+}
+
+function fichaEdicionInline(t){
+  const lugares = ["PIZUELA","MOSTACHO","EL NARANJO","EL ANDAMIO","MI GARAGE","STOP E","ALTO E","LA GUARDIA","ZONA E","DPTO 24"];
+  const esOtro = !lugares.includes(t.lugar);
+  const opcionesLugar = lugares.map(l=>`<option value="${l}" ${t.lugar===l?'selected':''}>${l}</option>`).join('') + `<option value="__otro" ${esOtro?'selected':''}>Otro...</option>`;
+  const campoMoney = rol === 'admin' ? `
+      <div>
+        <label>Precio acordado</label>
+        <input id="ie_precio" type="number" min="0" step="1" value="${t.precio||0}">
+      </div>
+      <div>
+        <label>Pagado</label>
+        <input id="ie_pagado" type="number" min="0" step="1" value="${t.pagado||0}">
+      </div>` : '';
+  return `
+    <div class="ficha pr-${t.prioridad}" style="border-left-color:var(--blue-dark);">
+      <h2 style="font-size:13px;text-transform:uppercase;margin:0 0 10px;">Editando pedido</h2>
+      <div class="formgrid">
+        <div>
+          <label>Lugar</label>
+          <select id="ie_lugar">${opcionesLugar}</select>
+          <input id="ie_lugar_otro" placeholder="Nombre del lugar" style="display:${esOtro?'block':'none'};margin-top:6px;" value="${esOtro?t.lugar:''}">
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="ie_tipo">
+            <option value="no funciona" ${t.tipo==='no funciona'?'selected':''}>No funciona</option>
+            <option value="agregar" ${t.tipo==='agregar'?'selected':''}>Agregar</option>
+            <option value="mejorar" ${t.tipo==='mejorar'?'selected':''}>Mejorar</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Pedido / descripción</label>
+          <input id="ie_pedido" value="${(t.pedido||'').replace(/"/g,'&quot;')}">
+        </div>
+        <div>
+          <label>Prioridad</label>
+          <select id="ie_prioridad">
+            <option value="urgente" ${t.prioridad==='urgente'?'selected':''}>Urgente</option>
+            <option value="media" ${t.prioridad==='media'?'selected':''}>Media</option>
+            <option value="baja" ${t.prioridad==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
+        <div>
+          <label>Fecha</label>
+          <input id="ie_fecha" type="date" value="${t.fecha||''}">
+        </div>
+        ${campoMoney}
+        <div class="full">
+          <label>Notas</label>
+          <textarea id="ie_notas" rows="2">${t.notas||''}</textarea>
+        </div>
+      </div>
+      <div class="formactions">
+        <button class="btn secondary small" onclick="cancelarEdicionInline()">Cancelar</button>
+        <button class="btn small" onclick="guardarEdicionInline('${t.id}')">Guardar</button>
+      </div>
+    </div>`;
+}
+
+function cancelarEdicionInline(){
+  editandoId = null;
+  render();
+}
+
+async function guardarEdicionInline(id){
+  const lugarSel = document.getElementById('ie_lugar').value;
+  const lugar = lugarSel==='__otro' ? (document.getElementById('ie_lugar_otro').value.trim().toUpperCase()||'SIN LUGAR') : lugarSel;
+  const pedidoTxt = document.getElementById('ie_pedido').value.trim();
+  if(!pedidoTxt){ mostrarModal('Falta información', '<p>Falta la descripción del pedido.</p>', [{label:'OK'}]); return; }
+
+  const idx = trabajos.findIndex(x=>x.id===id);
+  if(idx === -1) return;
+  const datosTrabajo = {
+    lugar, tipo: document.getElementById('ie_tipo').value, pedido: pedidoTxt,
+    prioridad: document.getElementById('ie_prioridad').value,
+    fecha: document.getElementById('ie_fecha').value,
+    notas: document.getElementById('ie_notas').value.trim(),
+  };
+  if(rol === 'admin'){
+    datosTrabajo.precio = Number(document.getElementById('ie_precio').value)||0;
+    datosTrabajo.pagado = Number(document.getElementById('ie_pagado').value)||0;
+  }
+  trabajos[idx] = {...trabajos[idx], ...datosTrabajo};
+  await guardarUno(trabajos[idx]);
+  editandoId = null;
+  poblarFiltroLugar();
+  render();
 }
 
 function mostrarModal(titulo, bodyBuilder, botones){
@@ -405,16 +503,11 @@ function mostrarModal(titulo, bodyBuilder, botones){
 function cerrarModal(){ document.getElementById('modalOverlay').style.display = 'none'; }
 
 function abrirForm(edit){
-  document.getElementById('formCard').classList.add('open');
   document.getElementById('formTitle').textContent = edit ? 'Editar pedido' : 'Nuevo pedido';
-  document.getElementById('btnNuevo').style.display = 'none';
-  setTimeout(()=>{
-    document.getElementById('formCard').scrollIntoView({behavior:'smooth', block:'start'});
-  }, 50);
+  document.getElementById('formOverlay').style.display = 'flex';
 }
 function cerrarForm(){
-  document.getElementById('formCard').classList.remove('open');
-  document.getElementById('btnNuevo').style.display = 'inline-block';
+  document.getElementById('formOverlay').style.display = 'none';
   editandoId = null;
   limpiarForm();
 }
@@ -468,21 +561,8 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
 });
 
 function editar(id){
-  const t = trabajos.find(x=>x.id===id);
-  if(!t) return;
   editandoId = id;
-  const sel = document.getElementById('f_lugar');
-  const existe = [...sel.options].some(o=>o.value===t.lugar);
-  if(existe){ sel.value=t.lugar; document.getElementById('f_lugar_otro').style.display='none'; }
-  else{ sel.value='__otro'; document.getElementById('f_lugar_otro').style.display='block'; document.getElementById('f_lugar_otro').value=t.lugar; }
-  document.getElementById('f_tipo').value=t.tipo;
-  document.getElementById('f_pedido').value=t.pedido;
-  document.getElementById('f_prioridad').value=t.prioridad;
-  document.getElementById('f_fecha').value=t.fecha||'';
-  document.getElementById('f_precio').value=t.precio||'';
-  document.getElementById('f_pagado').value=t.pagado||'';
-  document.getElementById('f_notas').value=t.notas||'';
-  abrirForm(true);
+  render();
 }
 
 async function marcarResuelto(id){
@@ -582,7 +662,8 @@ document.getElementById('btnRolTecnico').addEventListener('click', ()=>elegirRol
 
 setInterval(async ()=>{
   if(!rol) return;
-  if(document.getElementById('formCard').classList.contains('open')) return;
+  if(document.getElementById('formOverlay').style.display === 'flex') return;
+  if(editandoId) return;
   try{
     const fresco = await recargarDesdeDB();
     if(JSON.stringify(fresco) !== JSON.stringify(trabajos)){
